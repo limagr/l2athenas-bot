@@ -8,6 +8,7 @@ const { handlePoll, handleAnnouncement } = require('./interactions/poll')
 const { handleGuildMemberAdd } = require('./interactions/welcome')
 const { handleMessageCreate } = require('./interactions/channelguard')
 const { startMonitor } = require('./monitor')
+const { startBossMonitor } = require('./bossmonitor')
 
 const client = new Client({
   intents: [
@@ -21,6 +22,7 @@ const client = new Client({
 client.once(Events.ClientReady, (c) => {
   console.log(`✅ Bot online como ${c.user.tag}`)
   startMonitor(client).catch(err => console.error('[Monitor] Falha ao iniciar:', err.message))
+  startBossMonitor(client).catch(err => console.error('[BossMonitor] Falha ao iniciar:', err.message))
 })
 
 client.on(Events.GuildMemberAdd, (member) => {
