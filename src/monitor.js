@@ -2,25 +2,28 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const fs = require('fs')
 const path = require('path')
 
-const DATA_FILE  = path.join(__dirname, '..', 'data', 'status.json')
-const INTERVAL   = 30_000 // 30 segundos
+const DATA_FILE        = path.join(__dirname, '..', 'data', 'status.json')
+const INTERVAL         = 30_000  // 30 segundos
+const NOTIF_TTL        = 5 * 60_000  // 5 minutos
 
-let lastStatus   = null   // 'online' | 'offline' | null
-let statusMsgId  = null   // ID da mensagem fixa no canal
+let lastStatus         = null   // 'online' | 'offline' | null
+let statusMsgId        = null   // ID da mensagem fixa no canal
+let pendingNotifIds    = []     // IDs de notificações aguardando auto-delete
 
-// ── Persistência do messageId ──────────────────────────────────────────────
+// ── Persistência ───────────────────────────────────────────────────────────
 function loadData() {
   try {
     if (fs.existsSync(DATA_FILE)) {
       const d = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'))
-      statusMsgId = d.statusMsgId || null
+      statusMsgId     = d.statusMsgId     || null
+      pendingNotifIds = d.pendingNotifIds || []
     }
   } catch {}
 }
 
 function saveData() {
   fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true })
-  fs.writeFileSync(DATA_FILE, JSON.stringify({ statusMsgId }))
+  fs.writeFileSync(DATA_FILE, JSON.stringify({ statusMsgId, pendingNotifIds }))
 }
 
 // ── Busca status na API ────────────────────────────────────────────────────
@@ -72,16 +75,38 @@ async function updateStatusMessage(channel, data) {
   saveData()
 }
 
-// ── Envia notificação de mudança ──────────────────────────────────────────
+// ── Deleta notificações antigas salvas (chamado no startup) ───────────────
+async function deleteOldNotifications(channel) {
+  if (!pendingNotifIds.length) return
+  for (const id of pendingNotifIds) {
+    try {
+      const msg = await channel.messages.fetch(id)
+      await msg.delete()
+    } catch {}
+  }
+  pendingNotifIds = []
+  saveData()
+}
+
+// ── Envia notificação de mudança e agenda auto-delete ─────────────────────
 async function sendChangeNotification(channel, newStatus) {
   const jogadoresId = process.env.ROLE_JOGADORES_ID
   const ping = jogadoresId ? `<@&${jogadoresId}> ` : ''
 
-  if (newStatus === 'online') {
-    await channel.send(`${ping}🟢 **O servidor voltou!** L2 Athenas está online novamente.`)
-  } else {
-    await channel.send(`${ping}🔴 **Servidor offline.** L2 Athenas está fora do ar. Estamos trabalhando para resolver.`)
-  }
+  const text = newStatus === 'online'
+    ? `${ping}🟢 **O servidor voltou!** L2 Athenas está online novamente.`
+    : `${ping}🔴 **Servidor offline.** L2 Athenas está fora do ar. Estamos trabalhando para resolver.`
+
+  const msg = await channel.send(text)
+
+  pendingNotifIds.push(msg.id)
+  saveData()
+
+  setTimeout(async () => {
+    try { await msg.delete() } catch {}
+    pendingNotifIds = pendingNotifIds.filter(id => id !== msg.id)
+    saveData()
+  }, NOTIF_TTL)
 }
 
 // ── Loop principal ────────────────────────────────────────────────────────
@@ -137,6 +162,8 @@ async function startMonitor(client) {
     console.error('[Monitor] Canal de status não encontrado:', channelId)
     return
   }
+
+  await deleteOldNotifications(channel)
 
   if (!statusMsgId) {
     await recoverMessageId(channel, client.user.id)
