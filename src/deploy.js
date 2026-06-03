@@ -10,6 +10,10 @@ const commands = [
     .setName('setup-suporte')
     .setDescription('Envia a mensagem de abertura de ticket neste canal')
     .setDefaultMemberPermissions('0'),
+  new SlashCommandBuilder()
+    .setName('setup-status')
+    .setDescription('Cria a mensagem de status do servidor neste canal (use no canal de status)')
+    .setDefaultMemberPermissions('0'),
 ].map(c => c.toJSON())
 
 const rest = new REST().setToken(process.env.BOT_TOKEN)

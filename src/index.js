@@ -2,7 +2,8 @@ require('dotenv').config()
 const { Client, GatewayIntentBits, Events, MessageFlags } = require('discord.js')
 const { handleRulesAccept } = require('./interactions/rules')
 const { handleOpenTicket, handleCloseTicket } = require('./interactions/ticket')
-const { handleSetupRules, handleSetupSupport } = require('./interactions/setup')
+const { handleSetupRules, handleSetupSupport, handleSetupStatus } = require('./interactions/setup')
+const { startMonitor } = require('./monitor')
 
 const client = new Client({
   intents: [
@@ -13,6 +14,7 @@ const client = new Client({
 
 client.once(Events.ClientReady, (c) => {
   console.log(`✅ Bot online como ${c.user.tag}`)
+  startMonitor(client).catch(err => console.error('[Monitor] Falha ao iniciar:', err.message))
 })
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -20,6 +22,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === 'setup-regras')  return await handleSetupRules(interaction)
       if (interaction.commandName === 'setup-suporte') return await handleSetupSupport(interaction)
+      if (interaction.commandName === 'setup-status')  return await handleSetupStatus(interaction)
     }
 
     if (interaction.isButton()) {
