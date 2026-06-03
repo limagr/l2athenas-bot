@@ -6,12 +6,15 @@ const { handleSetupRules, handleSetupSupport, handleSetupStatus } = require('./i
 const { handleBan, handleKick } = require('./interactions/moderation')
 const { handlePoll, handleAnnouncement } = require('./interactions/poll')
 const { handleGuildMemberAdd } = require('./interactions/welcome')
+const { handleMessageCreate } = require('./interactions/channelguard')
 const { startMonitor } = require('./monitor')
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
   ],
 })
 
@@ -23,6 +26,12 @@ client.once(Events.ClientReady, (c) => {
 client.on(Events.GuildMemberAdd, (member) => {
   handleGuildMemberAdd(member).catch(err =>
     console.error('[Welcome] Erro ao enviar boas-vindas:', err.message)
+  )
+})
+
+client.on(Events.MessageCreate, (message) => {
+  handleMessageCreate(message).catch(err =>
+    console.error('[ChannelGuard] Erro:', err.message)
   )
 })
 
