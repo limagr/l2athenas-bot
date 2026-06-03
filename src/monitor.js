@@ -107,6 +107,21 @@ async function tick(channel) {
   lastStatus = currentStatus
 }
 
+// ── Recupera mensagem do bot no canal caso o arquivo não exista ───────────
+async function recoverMessageId(channel, botId) {
+  try {
+    const messages = await channel.messages.fetch({ limit: 50 })
+    const found = messages.find(m => m.author.id === botId && m.embeds.length > 0)
+    if (found) {
+      statusMsgId = found.id
+      saveData()
+      console.log('[Monitor] Mensagem de status recuperada:', statusMsgId)
+    }
+  } catch (err) {
+    console.error('[Monitor] Erro ao recuperar mensagem:', err.message)
+  }
+}
+
 // ── Inicializa o monitor ──────────────────────────────────────────────────
 async function startMonitor(client) {
   loadData()
@@ -121,6 +136,10 @@ async function startMonitor(client) {
   if (!channel) {
     console.error('[Monitor] Canal de status não encontrado:', channelId)
     return
+  }
+
+  if (!statusMsgId) {
+    await recoverMessageId(channel, client.user.id)
   }
 
   console.log('[Monitor] Iniciado — verificando a cada 30s')
