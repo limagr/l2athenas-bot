@@ -74,10 +74,13 @@ async function updateStatusMessage(channel, data) {
 
 // ── Envia notificação de mudança ──────────────────────────────────────────
 async function sendChangeNotification(channel, newStatus) {
+  const jogadoresId = process.env.ROLE_JOGADORES_ID
+  const ping = jogadoresId ? `<@&${jogadoresId}> ` : ''
+
   if (newStatus === 'online') {
-    await channel.send('🟢 **O servidor voltou!** L2 Athenas está online novamente.')
+    await channel.send(`${ping}🟢 **O servidor voltou!** L2 Athenas está online novamente.`)
   } else {
-    await channel.send('🔴 **Servidor offline.** L2 Athenas está fora do ar. Estamos trabalhando para resolver.')
+    await channel.send(`${ping}🔴 **Servidor offline.** L2 Athenas está fora do ar. Estamos trabalhando para resolver.`)
   }
 }
 

@@ -3,6 +3,9 @@ const { Client, GatewayIntentBits, Events, MessageFlags } = require('discord.js'
 const { handleRulesAccept } = require('./interactions/rules')
 const { handleOpenTicket, handleCloseTicket } = require('./interactions/ticket')
 const { handleSetupRules, handleSetupSupport, handleSetupStatus } = require('./interactions/setup')
+const { handleBan, handleKick } = require('./interactions/moderation')
+const { handlePoll, handleAnnouncement } = require('./interactions/poll')
+const { handleGuildMemberAdd } = require('./interactions/welcome')
 const { startMonitor } = require('./monitor')
 
 const client = new Client({
@@ -17,12 +20,22 @@ client.once(Events.ClientReady, (c) => {
   startMonitor(client).catch(err => console.error('[Monitor] Falha ao iniciar:', err.message))
 })
 
+client.on(Events.GuildMemberAdd, (member) => {
+  handleGuildMemberAdd(member).catch(err =>
+    console.error('[Welcome] Erro ao enviar boas-vindas:', err.message)
+  )
+})
+
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === 'setup-regras')  return await handleSetupRules(interaction)
       if (interaction.commandName === 'setup-suporte') return await handleSetupSupport(interaction)
       if (interaction.commandName === 'setup-status')  return await handleSetupStatus(interaction)
+      if (interaction.commandName === 'ban')           return await handleBan(interaction)
+      if (interaction.commandName === 'kick')          return await handleKick(interaction)
+      if (interaction.commandName === 'votacao')       return await handlePoll(interaction)
+      if (interaction.commandName === 'anuncio')       return await handleAnnouncement(interaction)
     }
 
     if (interaction.isButton()) {

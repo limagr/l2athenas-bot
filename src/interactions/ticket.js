@@ -7,6 +7,7 @@ const {
   ChannelType,
   MessageFlags,
 } = require('discord.js')
+const { logAction } = require('./modlog')
 
 async function handleOpenTicket(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
@@ -67,6 +68,13 @@ async function handleOpenTicket(interaction) {
   )
 
   await channel.send({ content: `${member} | <@&${suporteId}>`, embeds: [embed], components: [row] })
+
+  await logAction(interaction.client, {
+    type: 'ticket_open',
+    target: member.user,
+    extra: `Canal: ${channel}`,
+  })
+
   await interaction.editReply({ content: `✅ Ticket criado: ${channel}` })
 }
 
@@ -83,6 +91,15 @@ async function handleCloseTicket(interaction) {
   if (!isSupport && !isOwner) {
     return interaction.editReply({ content: '❌ Apenas o dono do ticket ou a equipe de suporte pode fechá-lo.' })
   }
+
+  await logAction(interaction.client, {
+    type: 'ticket_close',
+    target: interaction.guild.members.cache.find(
+      m => channel.name === `ticket-${m.user.username.toLowerCase()}`
+    )?.user,
+    moderator: member,
+    extra: `Canal: #${channel.name}`,
+  })
 
   await interaction.editReply({
     content: `🔒 Ticket fechado por ${member}. Este canal será deletado em 5 segundos.`,
