@@ -6,9 +6,17 @@ const DATA_FILE        = path.join(__dirname, '..', 'data', 'status.json')
 const INTERVAL         = 30_000  // 30 segundos
 const NOTIF_TTL        = 5 * 60_000  // 5 minutos
 
-let lastStatus         = null   // 'online' | 'offline' | null
-let statusMsgId        = null   // ID da mensagem fixa no canal
-let pendingNotifIds    = []     // IDs de notificações aguardando auto-delete
+// Nº de ticks consecutivos com o mesmo resultado bruto exigidos antes de
+// confirmar a mudança de status. Evita alertar por causa de uma falha
+// isolada da API/rede (falso positivo) e evita flapping na recuperação.
+const DOWN_CONFIRM_TICKS = Number(process.env.DOWN_CONFIRM_TICKS) || 2
+const UP_CONFIRM_TICKS   = Number(process.env.UP_CONFIRM_TICKS)   || 2
+
+let lastStatus          = null   // 'online' | 'offline' | null — último status CONFIRMADO
+let consecutiveOffline  = 0      // ticks brutos seguidos reportando offline
+let consecutiveOnline   = 0      // ticks brutos seguidos reportando online
+let statusMsgId         = null   // ID da mensagem fixa no canal
+let pendingNotifIds     = []     // IDs de notificações aguardando auto-delete
 
 // ── Persistência ───────────────────────────────────────────────────────────
 function loadData() {
@@ -112,24 +120,53 @@ async function sendChangeNotification(channel, newStatus) {
 // ── Loop principal ────────────────────────────────────────────────────────
 async function tick(channel) {
   let data = null
-  let currentStatus = 'offline'
+  let rawStatus = 'offline'
 
   try {
     data = await fetchStatus()
     const gameOnline  = data?.gameServer  === 'online'
     const loginOnline = data?.loginServer === 'online'
-    currentStatus = (gameOnline && loginOnline) ? 'online' : 'offline'
+    rawStatus = (gameOnline && loginOnline) ? 'online' : 'offline'
   } catch (err) {
     console.error('[Monitor] Erro ao buscar status:', err.message)
+
+    // Uma falha de rede/timeout pode ser só um blip da API, não do servidor
+    // de jogo. Confirma com uma segunda tentativa antes de contar como offline.
+    try {
+      await new Promise(resolve => setTimeout(resolve, 3_000))
+      data = await fetchStatus()
+      const gameOnline  = data?.gameServer  === 'online'
+      const loginOnline = data?.loginServer === 'online'
+      rawStatus = (gameOnline && loginOnline) ? 'online' : 'offline'
+    } catch (retryErr) {
+      console.error('[Monitor] Retry também falhou:', retryErr.message)
+    }
   }
 
-  await updateStatusMessage(channel, data)
-
-  if (lastStatus !== null && lastStatus !== currentStatus) {
-    await sendChangeNotification(channel, currentStatus)
+  // Só atualiza o embed fixo com um status já confirmado por N ticks
+  // consecutivos, para não exibir "OFFLINE" por causa de um falso positivo.
+  if (rawStatus === 'offline') {
+    consecutiveOffline++
+    consecutiveOnline = 0
+  } else {
+    consecutiveOnline++
+    consecutiveOffline = 0
   }
 
-  lastStatus = currentStatus
+  const confirmedOffline = lastStatus !== 'offline' && consecutiveOffline >= DOWN_CONFIRM_TICKS
+  const confirmedOnline  = lastStatus !== 'online'  && consecutiveOnline  >= UP_CONFIRM_TICKS
+
+  if (lastStatus === null) {
+    // Primeira checagem após o bot subir: assume o status bruto direto,
+    // sem exigir confirmação (não há "mudança" para alertar ainda).
+    lastStatus = rawStatus
+  } else if (confirmedOffline || confirmedOnline) {
+    const newStatus = confirmedOffline ? 'offline' : 'online'
+    await sendChangeNotification(channel, newStatus)
+    lastStatus = newStatus
+  }
+
+  await updateStatusMessage(channel, data ?? { gameServer: lastStatus, loginServer: lastStatus })
 }
 
 // ── Recupera mensagem do bot no canal caso o arquivo não exista ───────────
