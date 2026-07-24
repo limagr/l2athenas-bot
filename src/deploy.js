@@ -23,6 +23,13 @@ const commands = [
     .setDescription('Envia a mensagem de solicitação de cargo Streamer neste canal')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
+  new SlashCommandBuilder()
+    .setName('vincular-personagem')
+    .setDescription('Vincula seu personagem do jogo à sua conta do Discord (necessário para receber Athena Coins por stream)')
+    .addStringOption(opt =>
+      opt.setName('personagem').setDescription('Nome exato do seu personagem no jogo').setRequired(true)
+    ),
+
   // ── Moderação ──────────────────────────────────────────────────────────────
   new SlashCommandBuilder()
     .setName('ban')

@@ -3,6 +3,39 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder
 const TWITCH_DAYS = parseInt(process.env.STREAMER_TWITCH_DAYS || '14')
 const YOUTUBE_DAYS = parseInt(process.env.STREAMER_YOUTUBE_DAYS || '14')
 
+// ─── API (l2athenas_server) ─────────────────────────────────────────────────────
+
+async function callApi(path, body) {
+  const baseUrl = process.env.API_BASE_URL
+  const secret = process.env.BOT_API_SECRET
+  if (!baseUrl || !secret) {
+    console.error('[Streamer] API_BASE_URL ou BOT_API_SECRET não configurados.')
+    return { ok: false, error: 'API não configurada.' }
+  }
+
+  try {
+    const res = await fetch(`${baseUrl}/streamers${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Bot-Secret': secret },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) return { ok: false, error: data.message ?? `HTTP ${res.status}` }
+    return { ok: true, data }
+  } catch (err) {
+    console.error('[Streamer] Erro ao chamar API:', err.message)
+    return { ok: false, error: 'Falha de conexão com a API.' }
+  }
+}
+
+function linkChannel(discordUserId, platform, identifier, identifierType) {
+  return callApi('/link-channel', { discordUserId, platform, identifier, identifierType })
+}
+
+function linkCharacter(discordUserId, charName) {
+  return callApi('/link-character', { discordUserId, charName })
+}
+
 // ─── Duration Helpers ─────────────────────────────────────────────────────────
 
 // Twitch: "3h22m15s" → seconds
@@ -248,8 +281,14 @@ function buildReviewEmbed(member, parsed, info, criteria) {
     value: criteria.reason,
   })
 
-  embed.setTimestamp().setFooter({ text: `ID: ${member.id}` })
+  embed.setTimestamp().setFooter({ text: `ID: ${member.id} | ${parsed.platform}:${parsed.identifierType}:${parsed.identifier}` })
   return embed
+}
+
+function parseFooter(footerText) {
+  const m = footerText.match(/^ID: (\d+) \| (\w+):(\w+):(.+)$/)
+  if (!m) return null
+  return { userId: m[1], platform: m[2], identifierType: m[3], identifier: m[4] }
 }
 
 // ─── Request Embed (canal fixo com botão) ──────────────────────────────────────
@@ -348,6 +387,8 @@ async function processStreamerRequest(interaction, rawUrl) {
       return interaction.editReply({ content: '❌ Não foi possível atribuir o cargo. Verifique as permissões do bot.' })
     }
 
+    await linkChannel(interaction.member.id, parsed.platform, parsed.identifier, parsed.identifierType)
+
     if (staffChannel) {
       const embed = buildReviewEmbed(interaction.member, parsed, info, criteria)
       staffChannel.send({ content: '✅ **Auto-aprovado**', embeds: [embed] }).catch(() => {})
@@ -397,6 +438,11 @@ async function handleStreamerApprove(interaction) {
 
   await member.roles.add(roleId, `Aprovado por ${interaction.user.tag}`)
 
+  const footer = parseFooter(interaction.message.embeds[0].footer?.text ?? '')
+  if (footer) {
+    await linkChannel(footer.userId, footer.platform, footer.identifier, footer.identifierType)
+  }
+
   const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
     .setColor(0x00b894)
     .setFooter({ text: `Aprovado por ${interaction.user.tag} • ID: ${userId}` })
@@ -423,10 +469,33 @@ async function handleStreamerReject(interaction) {
   member?.send({ content: '❌ Sua solicitação de cargo **Streamer** foi **recusada**. Se tiver dúvidas, entre em contato com a equipe.' }).catch(() => {})
 }
 
+// ─── Vincular Personagem ────────────────────────────────────────────────────────
+
+async function handleLinkCharacter(interaction) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral })
+
+  const roleId = process.env.ROLE_STREAMER_ID
+  if (roleId && !interaction.member.roles.cache.has(roleId)) {
+    return interaction.editReply({ content: '❌ Você precisa ter o cargo **Streamer** antes de vincular um personagem.' })
+  }
+
+  const charName = interaction.options.getString('personagem').trim()
+  const result = await linkCharacter(interaction.member.id, charName)
+
+  if (!result.ok) {
+    return interaction.editReply({ content: `❌ ${result.error}` })
+  }
+
+  return interaction.editReply({
+    content: `✅ Personagem **${result.data.charName}** vinculado à sua conta do Discord. Suas horas de stream vão render Athena Coins automaticamente.`,
+  })
+}
+
 module.exports = {
   buildStreamerRequestEmbed,
   handleStreamerRequestButton,
   handleStreamerModalSubmit,
   handleStreamerApprove,
   handleStreamerReject,
+  handleLinkCharacter,
 }
