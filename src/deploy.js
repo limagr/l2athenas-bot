@@ -18,6 +18,11 @@ const commands = [
     .setDescription('Cria a mensagem de status do servidor neste canal (use no canal de status)')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
+  new SlashCommandBuilder()
+    .setName('setup-streamer')
+    .setDescription('Envia a mensagem de solicitação de cargo Streamer neste canal')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
   // ── Moderação ──────────────────────────────────────────────────────────────
   new SlashCommandBuilder()
     .setName('ban')

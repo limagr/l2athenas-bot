@@ -2,11 +2,12 @@ require('dotenv').config()
 const { Client, GatewayIntentBits, Events, MessageFlags } = require('discord.js')
 const { handleRulesAccept } = require('./interactions/rules')
 const { handleOpenTicket, handleCloseTicket } = require('./interactions/ticket')
-const { handleSetupRules, handleSetupSupport, handleSetupStatus } = require('./interactions/setup')
+const { handleSetupRules, handleSetupSupport, handleSetupStreamer, handleSetupStatus } = require('./interactions/setup')
 const { handleBan, handleKick } = require('./interactions/moderation')
 const { handlePoll, handleAnnouncement } = require('./interactions/poll')
 const { handleGuildMemberAdd } = require('./interactions/welcome')
 const { handleMessageCreate } = require('./interactions/channelguard')
+const { handleStreamerRequestButton, handleStreamerModalSubmit, handleStreamerApprove, handleStreamerReject } = require('./interactions/streamer')
 const { startMonitor } = require('./monitor')
 const { startBossMonitor } = require('./bossmonitor')
 const { startDownloadsMonitor } = require('./downloadsmonitor')
@@ -45,6 +46,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.commandName === 'setup-regras')  return await handleSetupRules(interaction)
       if (interaction.commandName === 'setup-suporte') return await handleSetupSupport(interaction)
       if (interaction.commandName === 'setup-status')  return await handleSetupStatus(interaction)
+      if (interaction.commandName === 'setup-streamer') return await handleSetupStreamer(interaction)
       if (interaction.commandName === 'ban')           return await handleBan(interaction)
       if (interaction.commandName === 'kick')          return await handleKick(interaction)
       if (interaction.commandName === 'votacao')       return await handlePoll(interaction)
@@ -54,7 +56,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isButton()) {
       if (interaction.customId === 'aceitar-regras')          return await handleRulesAccept(interaction)
       if (interaction.customId === 'abrir-ticket')            return await handleOpenTicket(interaction)
-      if (interaction.customId.startsWith('fechar-ticket-'))  return await handleCloseTicket(interaction)
+      if (interaction.customId === 'solicitar-cargo-streamer') return await handleStreamerRequestButton(interaction)
+      if (interaction.customId.startsWith('fechar-ticket-'))    return await handleCloseTicket(interaction)
+      if (interaction.customId.startsWith('aprovar-streamer-')) return await handleStreamerApprove(interaction)
+      if (interaction.customId.startsWith('recusar-streamer-')) return await handleStreamerReject(interaction)
+    }
+
+    if (interaction.isModalSubmit()) {
+      if (interaction.customId === 'modal-streamer-request') return await handleStreamerModalSubmit(interaction)
     }
   } catch (err) {
     console.error('Erro em interação:', err.message, '\n  Stack:', err.stack?.split('\n')[1]?.trim())

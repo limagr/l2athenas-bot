@@ -1,6 +1,7 @@
 const { MessageFlags } = require('discord.js')
 const { buildRulesEmbed } = require('./rules')
 const { buildSupportEmbed } = require('./ticket')
+const { buildStreamerRequestEmbed } = require('./streamer')
 const { buildStatusEmbed } = require('../monitor')
 
 async function handleSetupRules(interaction) {
@@ -25,6 +26,18 @@ async function handleSetupSupport(interaction) {
 
   await interaction.channel.send(buildSupportEmbed())
   await interaction.editReply({ content: '✅ Mensagem de suporte enviada.' })
+}
+
+async function handleSetupStreamer(interaction) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral })
+
+  const perms = interaction.channel.permissionsFor(interaction.guild.members.me)
+  if (!perms?.has('SendMessages')) {
+    return interaction.editReply({ content: '❌ Sem permissão para enviar mensagens neste canal.' })
+  }
+
+  await interaction.channel.send(buildStreamerRequestEmbed())
+  await interaction.editReply({ content: '✅ Mensagem de solicitação de cargo Streamer enviada.' })
 }
 
 async function handleSetupStatus(interaction) {
@@ -59,4 +72,4 @@ async function handleSetupStatus(interaction) {
   await interaction.editReply({ content: `✅ Mensagem de status criada. O monitor vai atualizá-la automaticamente a cada 30s.` })
 }
 
-module.exports = { handleSetupRules, handleSetupSupport, handleSetupStatus }
+module.exports = { handleSetupRules, handleSetupSupport, handleSetupStreamer, handleSetupStatus }
